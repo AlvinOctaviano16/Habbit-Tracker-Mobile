@@ -1,122 +1,210 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'to-do_provider.dart'; // Pastikan nama file ini 'todo_provider.dart'
 
 void main() {
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => TodoProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Habbers',
+      title: 'To-Do App',
+      home: TodoListPage(),
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        primarySwatch: Colors.blue,
+        brightness: Brightness.light,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
-  }
+class TodoListPage extends StatelessWidget {
+  const TodoListPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    // Kita 'watch' provider di level tertinggi 'build'
+    final provider = context.watch<TodoProvider>();
+
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+      // Kita pecah AppBar ke method-nya sendiri agar 'build' tetap bersih
+      appBar: _buildAppBar(context, provider),
+      
+      // Kita pecah body ke method-nya sendiri
+      body: provider.filteredTasks.isEmpty
+          ? _buildEmptyState()
+          : _buildTaskList(context, provider),
+
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddTaskDialog(context),
+        child: Icon(Icons.add),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+    );
+  }
+
+  // Helper method untuk membuat AppBar
+  PreferredSizeWidget _buildAppBar(BuildContext context, TodoProvider provider) {
+    return AppBar(
+      title: Text('To-Do List (${_getFilterName(provider.currentFilter)})'),
+      
+      // Menampilkan jumlah tugas aktif
+      bottom: PreferredSize(
+        preferredSize: Size.fromHeight(20.0),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: Text(
+            'Tugas aktif: ${provider.activeTaskCount}',
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
+        ),
+      ),
+
+      // Menu filter
+      actions: [
+        PopupMenuButton<FilterType>(
+          initialValue: provider.currentFilter,
+          onSelected: (FilterType filter) {
+            // Gunakan 'context.read' di dalam callback
+            context.read<TodoProvider>().setFilter(filter);
+          },
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<FilterType>>[
+            const PopupMenuItem<FilterType>(
+              value: FilterType.All,
+              child: Text('Semua'),
+            ),
+            const PopupMenuItem<FilterType>(
+              value: FilterType.Active,
+              child: Text('Aktif'),
+            ),
+            const PopupMenuItem<FilterType>(
+              value: FilterType.Done,
+              child: Text('Selesai'),
             ),
           ],
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+      ],
+    );
+  }
+
+  // Helper method untuk menampilkan pesan saat list kosong
+  Widget _buildEmptyState() {
+    return Center(
+      child: Text('Tidak ada tugas'),
+    );
+  }
+
+  // Helper method untuk membangun list tugas
+  Widget _buildTaskList(BuildContext context, TodoProvider provider) {
+    return ListView.builder(
+      itemCount: provider.filteredTasks.length,
+      itemBuilder: (context, index) {
+        final task = provider.filteredTasks[index];
+        
+        return CheckboxListTile(
+          title: Text(
+            task.title,
+            style: TextStyle(
+              decoration: task.isDone
+                  ? TextDecoration.lineThrough
+                  : TextDecoration.none,
+            ),
+          ),
+          value: task.isDone,
+          onChanged: (bool? newValue) {
+            context.read<TodoProvider>().toggleTaskStatus(task);
+          },
+          
+          // Tombol delete dengan logic Undo
+          secondary: IconButton(
+            icon: Icon(Icons.delete),
+            onPressed: () {
+              final deletedTask = context.read<TodoProvider>().deleteTask(task);
+
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text("Tugas '${deletedTask.title}' dihapus"),
+                  action: SnackBarAction(
+                    label: 'UNDO',
+                    onPressed: () {
+                      context.read<TodoProvider>().undoDelete();
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  // Helper method untuk nama filter (tetap sama)
+  String _getFilterName(FilterType filter) {
+    switch (filter) {
+      case FilterType.Active:
+        return 'Aktif';
+      case FilterType.Done:
+        return 'Selesai';
+      default:
+        return 'Semua';
+    }
+  }
+
+  // Dialog untuk tambah tugas (tetap sama)
+  void _showAddTaskDialog(BuildContext context) {
+    final TextEditingController _controller = TextEditingController();
+    String? _errorText;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text('Tugas Baru'),
+              content: TextField(
+                controller: _controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Masukkan judul tugas...',
+                  errorText: _errorText,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: Text('Batal'),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+                TextButton(
+                  child: Text('Simpan'),
+                  onPressed: () {
+                    final title = _controller.text;
+                    if (title.length >= 3) {
+                      context.read<TodoProvider>().addTask(title);
+                      Navigator.of(dialogContext).pop();
+                    } else {
+                      setDialogState(() {
+                        _errorText = 'Minimal 3 karakter';
+                      });
+                    }
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
